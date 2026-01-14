@@ -1,0 +1,32 @@
+# Recommended SSH Configuration
+# Edit /etc/ssh/sshd_config with these settings
+
+# Change default port (optional but recommended)
+# Port 2222
+
+# Disable root login
+PermitRootLogin no
+
+# Enable public key authentication
+PubkeyAuthentication yes
+
+# Disable password authentication (only after setting up SSH keys!)
+# PasswordAuthentication no
+
+# Disable empty passwords
+PermitEmptyPasswords no
+
+# Limit authentication attempts
+MaxAuthTries 3
+
+# Set login grace time
+LoginGraceTime 30
+
+# Allow only specific users (optional)
+# AllowUsers yourusername
+
+# Disable X11 forwarding if not needed
+X11Forwarding no
+
+# After making changes, restart SSH:
+# sudo systemctl restart ssh
