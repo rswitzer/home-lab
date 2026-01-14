@@ -60,7 +60,7 @@ Updates system packages and installs essential tools:
 Installs Docker CE using the official convenience script and configures the service.
 
 ### 02-install-docker-compose.sh
-Installs Docker Compose via pip for ARM compatibility.
+Installs Docker Compose plugin via the official apt package for ARM compatibility.
 
 ### 03-configure-network.sh
 Interactive script to:

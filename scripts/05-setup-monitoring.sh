@@ -27,12 +27,32 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Installing Node Exporter..."
     
-    # Download latest node exporter for ARM
+    # Detect architecture
+    ARCH=$(uname -m)
+    case $ARCH in
+        armv7l)
+            NODE_ARCH="linux-armv7"
+            ;;
+        aarch64|arm64)
+            NODE_ARCH="linux-arm64"
+            ;;
+        x86_64)
+            NODE_ARCH="linux-amd64"
+            ;;
+        *)
+            echo "Unsupported architecture: $ARCH"
+            echo "Skipping Node Exporter installation"
+            exit 0
+            ;;
+    esac
+    
+    # Download latest node exporter
     NODE_EXPORTER_VERSION="1.7.0"
-    wget https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-armv7.tar.gz -O /tmp/node_exporter.tar.gz
+    echo "Downloading Node Exporter for $NODE_ARCH..."
+    wget https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.${NODE_ARCH}.tar.gz -O /tmp/node_exporter.tar.gz
     
     tar -xzf /tmp/node_exporter.tar.gz -C /tmp/
-    sudo cp /tmp/node_exporter-${NODE_EXPORTER_VERSION}.linux-armv7/node_exporter /usr/local/bin/
+    sudo cp /tmp/node_exporter-${NODE_EXPORTER_VERSION}.${NODE_ARCH}/node_exporter /usr/local/bin/
     sudo chmod +x /usr/local/bin/node_exporter
     
     # Create systemd service
