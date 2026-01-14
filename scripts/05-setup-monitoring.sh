@@ -40,20 +40,21 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             NODE_ARCH="linux-amd64"
             ;;
         *)
-            echo "Unsupported architecture: $ARCH"
+            echo "Warning: Unsupported architecture: $ARCH"
             echo "Skipping Node Exporter installation"
-            exit 0
+            NODE_ARCH=""
             ;;
     esac
     
-    # Download latest node exporter
-    NODE_EXPORTER_VERSION="1.7.0"
-    echo "Downloading Node Exporter for $NODE_ARCH..."
-    wget https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.${NODE_ARCH}.tar.gz -O /tmp/node_exporter.tar.gz
-    
-    tar -xzf /tmp/node_exporter.tar.gz -C /tmp/
-    sudo cp /tmp/node_exporter-${NODE_EXPORTER_VERSION}.${NODE_ARCH}/node_exporter /usr/local/bin/
-    sudo chmod +x /usr/local/bin/node_exporter
+    if [ -n "$NODE_ARCH" ]; then
+        # Download latest node exporter
+        NODE_EXPORTER_VERSION="1.7.0"
+        echo "Downloading Node Exporter for $NODE_ARCH..."
+        wget https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.${NODE_ARCH}.tar.gz -O /tmp/node_exporter.tar.gz
+        
+        tar -xzf /tmp/node_exporter.tar.gz -C /tmp/
+        sudo cp /tmp/node_exporter-${NODE_EXPORTER_VERSION}.${NODE_ARCH}/node_exporter /usr/local/bin/
+        sudo chmod +x /usr/local/bin/node_exporter
     
     # Create systemd service
     sudo tee /etc/systemd/system/node_exporter.service > /dev/null <<EOF
@@ -68,14 +69,15 @@ ExecStart=/usr/local/bin/node_exporter
 [Install]
 WantedBy=multi-user.target
 EOF
-    
-    # Enable and start service
-    sudo systemctl daemon-reload
-    sudo systemctl enable node_exporter
-    sudo systemctl start node_exporter
-    
-    echo "Node Exporter installed and running on port 9100"
-    rm -rf /tmp/node_exporter*
+        
+        # Enable and start service
+        sudo systemctl daemon-reload
+        sudo systemctl enable node_exporter
+        sudo systemctl start node_exporter
+        
+        echo "Node Exporter installed and running on port 9100"
+        rm -rf /tmp/node_exporter*
+    fi
 fi
 
 echo "=========================================="
