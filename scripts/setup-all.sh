@@ -13,6 +13,7 @@ echo "You can also run individual scripts separately."
 echo ""
 
 # Array of scripts to run
+# Note: 06-backup.sh is intentionally excluded as it should be run separately after setup
 SCRIPTS=(
     "00-initial-setup.sh"
     "01-install-docker.sh"

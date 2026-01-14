@@ -38,7 +38,7 @@ fi
 
 # Create a list of installed packages
 echo "Creating list of installed packages..."
-dpkg --get-selections > "${BACKUP_PATH}/installed-packages.txt"
+sudo bash -c "dpkg --get-selections > \"${BACKUP_PATH}/installed-packages.txt\""
 
 # Save crontab
 echo "Backing up crontab..."
