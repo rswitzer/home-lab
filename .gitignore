@@ -1,0 +1,39 @@
+# Backup files
+backup/
+*.tar.gz
+*.zip
+
+# Docker volumes and data
+docker-compose.yml
+pihole/
+heimdall/
+portainer/
+*/data/
+*_data/
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Environment files with secrets
+.env
+*.env
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local configuration (not example files)
+configs/*.conf
+!configs/*.example
