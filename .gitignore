@@ -1,0 +1,51 @@
+# Ansible + Raspberry Pi cluster - minimal best-practice ignores
+
+# Python / virtualenv
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Ansible
+*.retry
+.ansible/
+.ansible_tmp/
+.cache/ansible
+
+# Local inventory / secrets (keep example files in repo instead)
+inventory.local*
+hosts.local*
+vault_password*
+*.vault
+
+# SSH keys / credentials
+*.pem
+*.key
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.ppk
+
+# Tools / CI / testing
+.molecule/
+.vagrant/
+.tox/
+.pytest_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.log
+
+# Raspberry Pi images / backups
+*.img
+*.img.gz
+*.xz
+*.zip
