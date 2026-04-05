@@ -1,0 +1,10 @@
+---
+# Preflight playbook: wait until SSH is available on all hosts
+- name: Wait for SSH on all hosts
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Wait until SSH/Ansible connection is ready
+      ansible.builtin.wait_for_connection:
+        timeout: 180
+        sleep: 2
