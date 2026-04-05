@@ -1,0 +1,11 @@
+---
+# Base OS setup applied to all hosts
+- name: Common setup for all Pis
+  hosts: all
+  become: true
+  tasks:
+    - name: Update apt cache and upgrade all packages
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+        upgrade: dist

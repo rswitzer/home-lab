@@ -1,0 +1,8 @@
+---
+# Central entrypoint — sets up all Pis with a single command
+# Usage: ansible-playbook site.yml
+- name: Preflight
+  import_playbook: wait-for-ssh.yml
+
+- name: Base OS setup
+  import_playbook: common.yml
