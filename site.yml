@@ -6,3 +6,6 @@
 
 - name: Base OS setup
   import_playbook: common.yml
+
+- name: K3s cluster
+  import_playbook: k3s.yml
