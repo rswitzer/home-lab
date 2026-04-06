@@ -1,0 +1,39 @@
+---
+# Uninstall k3s from all cluster nodes.
+# Usage: ansible-playbook k3s-uninstall.yml
+
+- name: Uninstall k3s agents from workers
+  hosts: workers
+  become: true
+  tasks:
+    - name: Check if k3s-agent-uninstall script exists
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s-agent-uninstall.sh
+      register: agent_uninstall
+
+    - name: Run k3s agent uninstall
+      ansible.builtin.command: /usr/local/bin/k3s-agent-uninstall.sh
+      when: agent_uninstall.stat.exists
+
+- name: Uninstall k3s server from control plane
+  hosts: control_plane
+  become: true
+  tasks:
+    - name: Check if k3s-uninstall script exists
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s-uninstall.sh
+      register: server_uninstall
+
+    - name: Run k3s server uninstall
+      ansible.builtin.command: /usr/local/bin/k3s-uninstall.sh
+      when: server_uninstall.stat.exists
+
+- name: Remove kubeconfig from controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Remove local kubeconfig
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.kube/config"
+        state: absent

@@ -1,0 +1,75 @@
+---
+# Install k3s server on the control plane, then join workers as agents.
+# Copies kubeconfig to your local machine so kubectl works immediately.
+
+- name: Install k3s server on control plane
+  hosts: control_plane
+  become: true
+  tasks:
+    - name: Ensure curl is installed
+      ansible.builtin.apt:
+        name: curl
+        state: present
+        update_cache: yes
+
+    - name: Install k3s server
+      ansible.builtin.shell: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644" sh -
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for kubeconfig
+      ansible.builtin.wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        timeout: 180
+
+    - name: Read node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token_raw
+
+    - name: Save token as fact for worker joins
+      ansible.builtin.set_fact:
+        k3s_token: "{{ k3s_node_token_raw.content | b64decode | trim }}"
+
+    - name: Read kubeconfig
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: k3s_kubeconfig_raw
+
+    - name: Ensure local .kube directory exists
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.kube"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      become: false
+
+    - name: Copy kubeconfig to controller
+      ansible.builtin.copy:
+        content: "{{ k3s_kubeconfig_raw.content | b64decode | replace('127.0.0.1', ansible_host) }}"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+
+- name: Install k3s agents on workers
+  hosts: workers
+  become: true
+  vars:
+    k3s_server_ip: "{{ hostvars[groups['control_plane'][0]].ansible_default_ipv4.address }}"
+    k3s_server_token: "{{ hostvars[groups['control_plane'][0]].k3s_token }}"
+  tasks:
+    - name: Ensure curl is installed
+      ansible.builtin.apt:
+        name: curl
+        state: present
+        update_cache: yes
+
+    - name: Install k3s agent
+      ansible.builtin.shell: >
+        curl -sfL https://get.k3s.io |
+        K3S_URL="https://{{ k3s_server_ip }}:6443"
+        K3S_TOKEN="{{ k3s_server_token }}"
+        sh -
+      args:
+        creates: /usr/local/bin/k3s
