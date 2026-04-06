@@ -1,0 +1,43 @@
+---
+# Gracefully shut down all cluster nodes in a safe order:
+# workers first (so k3s agents stop before the server), then control plane, then database.
+# Usage: ansible-playbook playbooks/ops/shutdown.yml
+
+- name: Shut down k3s workers
+  hosts: workers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Initiate shutdown on worker node
+      ansible.builtin.command: /sbin/shutdown -h now
+      async: 1
+      poll: 0
+
+- name: Wait for workers to power off
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Pause before shutting down control plane
+      ansible.builtin.pause:
+        seconds: 15
+        prompt: "Waiting 15 s for workers to power off..."
+
+- name: Shut down k3s control plane
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Initiate shutdown on control plane node
+      ansible.builtin.command: /sbin/shutdown -h now
+      async: 1
+      poll: 0
+
+- name: Shut down database node
+  hosts: db
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Initiate shutdown on database node
+      ansible.builtin.command: /sbin/shutdown -h now
+      async: 1
+      poll: 0

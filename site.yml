@@ -2,10 +2,10 @@
 # Central entrypoint — sets up all Pis with a single command
 # Usage: ansible-playbook site.yml
 - name: Preflight
-  import_playbook: wait-for-ssh.yml
+  import_playbook: playbooks/ops/wait-for-ssh.yml
 
 - name: Base OS setup
-  import_playbook: common.yml
+  import_playbook: playbooks/setup/common.yml
 
 - name: K3s cluster
-  import_playbook: k3s.yml
+  import_playbook: playbooks/setup/k3s.yml

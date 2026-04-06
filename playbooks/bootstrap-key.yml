@@ -1,6 +1,7 @@
 ---
-# One-shot playbook to install the operator's public SSH key on all hosts
-# Usage: ansible-playbook -i inventory.ini bootstrap-key.yml --ask-pass
+# One-shot playbook to bootstrap all hosts from a fresh Pi Imager flash.
+# Installs your SSH public key and configures passwordless sudo in a single run.
+# Usage: ansible-playbook playbooks/bootstrap-key.yml --ask-pass --ask-become-pass
 - name: Bootstrap SSH public key to remote users
   hosts: all
   gather_facts: false
@@ -14,18 +15,28 @@
         sleep: 2
   tasks:
     - name: Ensure remote .ssh directory exists
-      file:
+      ansible.builtin.file:
         path: "~/.ssh"
         state: directory
         mode: '0700'
 
     - name: Install public key for target user
-      authorized_key:
+      ansible.posix.authorized_key:
         user: "{{ target_user }}"
         state: present
         key: "{{ lookup('file', pubkey_path) }}"
 
     - name: Ensure authorized_keys has correct permissions
-      file:
+      ansible.builtin.file:
         path: "~/.ssh/authorized_keys"
         mode: '0600'
+
+    - name: Configure passwordless sudo for {{ target_user }}
+      ansible.builtin.copy:
+        content: "{{ target_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        dest: "/etc/sudoers.d/90-{{ target_user }}"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: 'visudo -cf %s'
+      become: true
