@@ -32,11 +32,9 @@
         mode: '0600'
 
     - name: Configure passwordless sudo for {{ target_user }}
-      ansible.builtin.copy:
-        content: "{{ target_user }} ALL=(ALL) NOPASSWD:ALL\n"
-        dest: "/etc/sudoers.d/90-{{ target_user }}"
-        owner: root
-        group: root
-        mode: '0440'
-        validate: 'visudo -cf %s'
-      become: true
+      ansible.builtin.raw: >
+        printf '%s\n' '{{ ansible_become_password | default(ansible_ssh_pass, true) }}' |
+        sudo -S sh -c
+        'printf "%s ALL=(ALL) NOPASSWD:ALL\n" "{{ target_user }}" > /etc/sudoers.d/90-{{ target_user }}
+        && chmod 0440 /etc/sudoers.d/90-{{ target_user }}'
+      changed_when: true

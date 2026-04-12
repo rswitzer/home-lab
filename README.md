@@ -1,36 +1,85 @@
 # home-lab
 
-Ansible playbooks for managing a Raspberry Pi homelab cluster.
+Ansible playbooks for managing a Raspberry Pi homelab cluster running k3s.
 
 ## Hardware
 
-| Role          | Board            | Hostname             |
-| ------------- | ---------------- | -------------------- |
-| Control plane | Raspberry Pi 5   | `pi-control-plane`   |
-| Worker 1      | Raspberry Pi 5   | `pi-node1`           |
-| Worker 2      | Raspberry Pi 5   | `pi-node2`           |
-| Database      | Raspberry Pi 4   | `pi-db`              |
+| Role          | Board          | Hostname           |
+| ------------- | -------------- | ------------------ |
+| Control plane | Raspberry Pi 5 | `pi-control-plane` |
+| Worker 1      | Raspberry Pi 5 | `pi-node1`         |
+| Worker 2      | Raspberry Pi 5 | `pi-node2`         |
+| Database      | Raspberry Pi 4 | `pi-db`            |
 
 All nodes run **Ubuntu Server 25.10 (64-bit)**. The cluster runs **k3s v1.34.6+k3s1**.
 
-## Flashing the Pis
+## Prerequisites
+
+On your **controller machine** (the computer you run Ansible from):
+
+1. **Ansible** — install via your package manager or pip:
+
+   ```bash
+   # Ubuntu/Debian
+   sudo apt install ansible
+
+   # or via pip
+   pip install ansible
+   ```
+
+2. **SSH keypair** — generate one if you don't have it:
+
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+   ```
+
+3. **`kubectl`** — the k3s playbook copies the kubeconfig to `~/.kube/config` automatically:
+
+   ```bash
+   sudo apt install kubectl
+   ```
+
+## Project Structure
+
+```
+.
+├── ansible.cfg                    # Ansible settings (inventory path, timeouts)
+├── site.yml                       # Central entrypoint — sets up the whole cluster
+├── inventory/
+│   └── hosts.ini                  # Host definitions and groups
+└── playbooks/
+    ├── bootstrap/
+    │   └── bootstrap-key.yml      # One-time: install SSH key + configure passwordless sudo
+    ├── setup/
+    │   ├── common.yml             # Base OS setup (apt, sudo, cgroup config + reboot)
+    │   └── k3s.yml                # Install k3s server + agents, copy kubeconfig
+    ├── teardown/
+    │   └── k3s-uninstall.yml      # Tear down k3s from all cluster nodes
+    └── ops/
+        ├── shutdown.yml           # Graceful cluster shutdown (workers → control plane → db)
+        └── wait-for-ssh.yml       # Preflight — polls until all hosts are SSH-reachable
+```
+
+---
+
+## Setup After a Fresh Flash
+
+Follow these steps **in order** after flashing all SD cards with Raspberry Pi Imager.
+
+### Step 0: Flash the SD Cards
 
 1. Download and open [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
 2. Choose **Ubuntu Server 25.10 (64-bit)** as the OS.
-3. Click the gear icon (or **Edit Settings**) before writing and configure:
+3. Click **Edit Settings** before writing and configure:
    - **Hostname** — set to the hostname from the table above (e.g. `pi-control-plane`).
-   - **Username / password** — create user `rachel` with a password.
-   - **Enable SSH** — check "Allow public-key authentication only" if you already have a key, otherwise use password auth for now.
+   - **Username / password** — create user `admin` with a password you'll remember.
+   - **Enable SSH** — use password authentication (the bootstrap playbook will install your key).
 4. Write to the SD card and boot the Pi.
 5. Repeat for each node.
 
-> **Tip:** Leave SSH set to password authentication for now — the bootstrap playbook will install your key and configure passwordless sudo in one command.
+### Step 1: Verify Network Connectivity
 
-## Networking (mDNS)
-
-The inventory uses `.local` hostnames (e.g. `pi-node1.local`) which rely on **mDNS / Avahi**. Ubuntu Server includes `avahi-daemon` by default, so this should work out of the box on your local network.
-
-Verify each node is reachable before continuing:
+Make sure all Pis are booted and reachable on your local network via mDNS:
 
 ```bash
 ping pi-control-plane.local
@@ -39,64 +88,132 @@ ping pi-node2.local
 ping pi-db.local
 ```
 
-If a hostname doesn't resolve, make sure the Pi is booted and on the same network. As a fallback, replace the `.local` hostnames in `inventory/hosts.ini` with IP addresses.
+> **Tip:** If a hostname doesn't resolve, make sure the Pi is booted and on the same network. As a fallback, replace `.local` hostnames in `inventory/hosts.ini` with IP addresses.
 
-> **Note:** mDNS works for Ansible and tools like `curl` and `ping`, but **not** for k3s itself. k3s is a statically-linked Go binary that bypasses the system DNS resolver and cannot resolve `.local` hostnames. This is why `playbooks/k3s.yml` uses the control plane's real IP address for `K3S_URL`.
+### Step 2: Clear Stale SSH Host Keys
 
-## Prerequisites
-
-On your **controller machine** (the computer you run Ansible from):
-
-1. **Ansible** — install via your package manager or pip. See the [Ansible install guide](https://docs.ansible.com/ansible/latest/installation_guide/index.html).
-2. **SSH keypair** — generate an ed25519 key if you don't already have one:
+If you previously had these Pis connected, your `known_hosts` file will have old keys that no longer match. Clear them:
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+ssh-keygen -f ~/.ssh/known_hosts -R pi-control-plane.local
+ssh-keygen -f ~/.ssh/known_hosts -R pi-node1.local
+ssh-keygen -f ~/.ssh/known_hosts -R pi-node2.local
+ssh-keygen -f ~/.ssh/known_hosts -R pi-db.local
 ```
 
-3. **`kubectl`** — the `playbooks/k3s.yml` playbook copies the kubeconfig to `~/.kube/config` automatically. Install `kubectl` on your controller to use it:
+> Skip this step if this is your very first time setting up the Pis.
+
+### Step 3: Bootstrap SSH Keys and Passwordless Sudo
+
+This installs your SSH public key on every Pi and configures passwordless `sudo`. You'll be prompted for the password you set during imaging:
 
 ```bash
-# Ubuntu/Debian
-sudo apt install kubectl
+ansible-playbook playbooks/bootstrap/bootstrap-key.yml --ask-pass --ask-become-pass
 ```
 
-## Project Structure
+Enter the same password for both prompts.
 
-```
-.
-├── ansible.cfg                    # Ansible settings (inventory path, timeouts, etc.)
-├── site.yml                       # Central entrypoint — sets up the whole cluster
-├── inventory/
-│   └── hosts.ini                  # Host definitions and groups
-└── playbooks/
-    ├── bootstrap/
-    │   └── bootstrap-key.yml      # One-time: install SSH key + configure passwordless sudo
-    ├── setup/
-    │   ├── common.yml             # Base OS setup (apt update, dist-upgrade, sudo config)
-    │   └── k3s.yml                # Install k3s server + agents, copy kubeconfig
-    ├── teardown/
-    │   └── k3s-uninstall.yml      # Tear down k3s from all cluster nodes
-    └── ops/
-        ├── shutdown.yml           # Graceful cluster shutdown (workers → control plane → db)
-        └── wait-for-ssh.yml       # Preflight — polls until all hosts are reachable
+### Step 4: Verify Ansible Connectivity
+
+Confirm all hosts are reachable over key-based SSH:
+
+```bash
+ansible all -m ping
 ```
 
-- **`ansible.cfg`** — points Ansible at `inventory/hosts.ini`, disables host-key checking, sets a 20 s SSH timeout, and silences Python interpreter warnings.
-- **`inventory/hosts.ini`** — four groups: `control_plane` (pi-control-plane), `workers` (pi-node1, pi-node2), `db` (pi-db), and `cluster` which combines control plane + workers. All hosts set `ansible_user=rachel`.
-- **`site.yml`** — the main entrypoint. Chains `wait-for-ssh.yml` → `common.yml` → `k3s.yml` so a single command sets up the entire cluster.
-- **`playbooks/bootstrap/bootstrap-key.yml`** — one-time setup: installs `~/.ssh/id_ed25519.pub` on every host and configures passwordless sudo, using SSH password auth on a fresh Pi.
-- **`playbooks/setup/common.yml`** — base OS setup applied to all hosts: apt cache update + full dist-upgrade + enforce passwordless sudo.
-- **`playbooks/setup/k3s.yml`** — installs k3s server on `control_plane`, joins `workers` as agents using the server's real IP address, and copies the kubeconfig to `~/.kube/config` on your controller.
-- **`playbooks/teardown/k3s-uninstall.yml`** — cleanly removes k3s from workers then the server, and deletes the local kubeconfig. Use this to start fresh.
-- **`playbooks/ops/shutdown.yml`** — graceful shutdown: stops workers first (so k3s agents drain before the server), then control plane, then `pi-db`.
-- **`playbooks/ops/wait-for-ssh.yml`** — preflight: polls SSH on every host until available (up to 180 s).
+You should see `SUCCESS` for all four hosts.
 
-## Usage: Setup the Cluster
+### Step 5: Run the Full Site Playbook
 
-Full flow from a fresh Pi Imager flash to a running cluster:
+This runs the entire setup end-to-end — base OS configuration, cgroup enablement (with reboot if needed), and k3s cluster installation:
 
-**Step 1** — bootstrap SSH keys and passwordless sudo (one-time, uses the password you set in Pi Imager):
+```bash
+ansible-playbook site.yml
+```
+
+What `site.yml` does in order:
+
+1. **Preflight** (`wait-for-ssh.yml`) — waits until all hosts are SSH-reachable.
+2. **Common setup** (`common.yml`) — apt update + dist-upgrade, enforces passwordless sudo, enables cgroup memory (required by k3s), and reboots if the boot config changed.
+3. **K3s install** (`k3s.yml`) — installs k3s server on the control plane, joins the workers as agents, and copies the kubeconfig to `~/.kube/config` on your machine.
+
+### Step 6: Verify the Cluster
+
+```bash
+kubectl get nodes
+```
+
+You should see `pi-control-plane`, `pi-node1`, and `pi-node2` in `Ready` state. (`pi-db` is not part of the k3s cluster by design.)
+
+---
+
+## Operations & Management
+
+Commands for day-to-day management after the initial setup.
+
+### Check Host Connectivity
+
+```bash
+ansible all -m ping
+```
+
+### Run Individual Setup Playbooks
+
+If you need to re-run a specific part of the setup:
+
+```bash
+# Base OS setup only (apt upgrade, sudo, cgroups)
+ansible-playbook playbooks/setup/common.yml
+
+# K3s install only
+ansible-playbook playbooks/setup/k3s.yml
+```
+
+### Uninstall k3s
+
+Cleanly removes k3s from all workers, then the server, and deletes the local kubeconfig:
+
+```bash
+ansible-playbook playbooks/teardown/k3s-uninstall.yml
+```
+
+### Graceful Cluster Shutdown
+
+Shuts down nodes in a safe order — workers first (so k3s agents drain), then control plane, then database:
+
+```bash
+ansible-playbook playbooks/ops/shutdown.yml
+```
+
+### Reinstall k3s From Scratch
+
+```bash
+ansible-playbook playbooks/teardown/k3s-uninstall.yml
+ansible-playbook playbooks/setup/k3s.yml
+```
+
+### Ad-hoc Commands
+
+Run a command on all hosts:
+
+```bash
+ansible all -m shell -a "uptime"
+```
+
+Run a command on a specific group:
+
+```bash
+ansible workers -m shell -a "systemctl status k3s-agent"
+ansible control_plane -m shell -a "kubectl get nodes"
+```
+
+---
+
+## Networking Notes
+
+- The inventory uses `.local` hostnames via **mDNS / Avahi**, which works out of the box on Ubuntu Server.
+- **k3s** is a statically-linked Go binary that bypasses the system DNS resolver and **cannot** resolve `.local` hostnames. That's why `playbooks/setup/k3s.yml` uses the control plane's real IP address for `K3S_URL`.
+- The fresh Pi OS images ship with **`sudo-rs`** (Rust sudo). The bootstrap playbook uses `ansible.builtin.raw` with `sudo -S` to configure passwordless sudo, which avoids Ansible's become prompt detection issues with `sudo-rs`.
 
 ```bash
 ansible-playbook playbooks/bootstrap/bootstrap-key.yml --ask-pass --ask-become-pass

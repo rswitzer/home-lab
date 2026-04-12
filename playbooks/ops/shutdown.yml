@@ -9,9 +9,10 @@
   gather_facts: false
   tasks:
     - name: Initiate shutdown on worker node
-      ansible.builtin.command: /sbin/shutdown -h now
+      ansible.builtin.shell: nohup /sbin/shutdown -h +0 &
       async: 1
       poll: 0
+      ignore_unreachable: true
 
 - name: Wait for workers to power off
   hosts: localhost
@@ -28,9 +29,10 @@
   gather_facts: false
   tasks:
     - name: Initiate shutdown on control plane node
-      ansible.builtin.command: /sbin/shutdown -h now
+      ansible.builtin.shell: nohup /sbin/shutdown -h +0 &
       async: 1
       poll: 0
+      ignore_unreachable: true
 
 - name: Shut down database node
   hosts: db
@@ -38,6 +40,7 @@
   gather_facts: false
   tasks:
     - name: Initiate shutdown on database node
-      ansible.builtin.command: /sbin/shutdown -h now
+      ansible.builtin.shell: nohup /sbin/shutdown -h +0 &
       async: 1
       poll: 0
+      ignore_unreachable: true
